@@ -1,0 +1,56 @@
+<html>
+<head>
+ <title>Welcome to CUSD</title>
+  <style TYPE="TEXT/CSS">
+  <!--
+   body {{
+    font-family: Helvetica, Arial, Sans-Serif;
+  }}
+   p{{
+    font-size:14px;
+    margin-top:7px;
+    margin-bottom:3px;
+    margin-left:0px;
+    margin-right:0px;
+	  }}
+   h3,h4,h5{{
+    margin-top:10px;
+    margin-bottom:0px;
+    margin-left:0px;
+    margin-right:0px;
+   }}
+   .item {{ 
+    text-indent: 1em;
+   }}
+  -->
+ </style>
+</head>
+	<body>
+		<h3><strong>Hello {0},</strong></h3>
+		<p>
+   Your Chico Unified accounts
+   <ui>
+    <li>{1}@chicousd.ORG (Office365)</li>
+    <li>{1}@chicousd.NET (Google)</li>
+   </ui>
+   <br>are scheduled to be disabled on <b>{2}</b>.
+  </p>
+		<p>
+   To save your Google Suite files follow this 
+    guide: <a href="https://goo.gl/SlCQ1D">Google File Transfer Instructions</a>
+  </p>
+  <p>Still employed by the Chico Unified School District? 
+   Contact the following staff member to have your account reinstated:
+   <ui>
+   <li>Certificated Staff - Heather Deaver <a href="mailto:hdeaver@chicousd.org" target="_blank">hdeaver@chicousd.org</a></li>
+   <li>Classified Staff - Christina Ordorica <a href="mailto:cordorica@chicousd.org" target="_blank">cordorica@chicousd.org</a></li>
+   </ui>
+   </p>
+		Thank You,<br>
+		<h4>Chico Unified Information Services</h4>
+		<a href="http://www.chicousd.org" target="_blank">
+   <img src="https://i.imgur.com/CNEhFkP.png" alt="CUSD Logo" width=60 height=60><br>
+   www.ChicoUSD.Org
+  </a>
+	</body>
+</html>
