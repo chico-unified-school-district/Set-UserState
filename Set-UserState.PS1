@@ -29,6 +29,7 @@ param (
  [Parameter(Mandatory = $True)]
  [Alias('MailCred')]
  [System.Management.Automation.PSCredential]$EmailCredential,
+ [Alias('wi')]
  [SWITCH]$WhatIf
 )
 # $PSBoundParameters
@@ -49,9 +50,9 @@ $retiredOU = 'OU=Resignation-Termination-Retired,OU=Disabled_User_Objects,DC=chi
 if ( $WhatIf ) { Add-Log test "All Actions DISABLED" }
 
 # AD Domain Controller Session
-$adSession = New-PSSession -ComputerName 'Mainframe.chico.usd' -Credential $ActiveDirectoryCredential
+$adSession = New-PSSession -ComputerName $DomainController -Credential $ActiveDirectoryCredential
 $cmdLets = 'Get-ADUser', 'Set-ADUser', 'Move-ADObject' , 'Search-ADAccount'
-Import-PSSession -Session $adSession -Module 'ActiveDirectory' -CommandName $cmdLets -AllowClobber
+Import-PSSession -Session $adSession -Module 'ActiveDirectory' -CommandName $cmdLets -AllowClobber | Out-Null
 
 # Escape Connection Variables
 $dbParams = @{
@@ -70,18 +71,17 @@ $employeeParams = @{
   (employeeID -like "*") -and 
   (mail -like "*@chicousd.org") -and 
   (info -notlike "*Keep*Active*") -and
-  (department -ne 380) -and 
-  (distinguishedname -notlike "*New*Employee*Accounts*")
+  (department -ne 380)
  }
  properties = 'employeeid', 'employeenumber', 'mail', 'AccountExpirationDate'
  searchBase = $StaffOU
 }
 
-$ADemployees = get-aduser @employeeParams
+$ADemployees = get-aduser @employeeParams | Where-Object {$_.distinguishedname -notlike "*OU=New Employee Accounts*"}
 "AD Results`: " + $ADemployees.count
 
 # Move Exppired Accounts ============================================================
-$expiredGracePeriod = (Get-Date).AddDays(-7)
+$expiredGracePeriod = (Get-Date).AddDays(-14)
 
 $searchParams = @{
  AccountExpired = $True
@@ -95,6 +95,7 @@ $expiredAccounts = Search-ADAccount @searchParams | Where-Object {
  $_.distinguishedname -notlike "*New*Employee*Accounts*"
 }
 foreach ($user in $expiredAccounts) {
+ Write-Debug ("Process {0}?" -f $user.samAccountName)
  Write-Verbose ("Processing {0}" -f $user.samAccountName)
  # $user.distinguishedname >> dn.txt
  Set-ADUser -Identity $user.ObjectGUID -Clear extensionAttribute1 -Whatif:$WhatIf
@@ -109,6 +110,7 @@ $retiredTerminated = $ADemployees.ForEach( { if ($dbResults.empid -contains $_.e
 # Check Retired/terminated ===========================================================
 # Process Rows
 foreach ( $user in $retiredTerminated ) {
+ Write-Debug ("Process {0} {1}?" -f $user.samAccountName, $user.employeeID)
  Write-Verbose ("Processing {0} {1}" -f $user.samAccountName, $user.employeeID)
  # $user.name >> .\names.txt
  $samid = $user.samAccountName
@@ -119,15 +121,20 @@ foreach ( $user in $retiredTerminated ) {
   # Set Account Expiration
   $lastDay = ($dbResults.where( { $_.empID -eq $empId })).DateTerminationLastDay
   if ( $lastDay -and ($lastDay.getType().name -ne 'DBNull') ) {
-   $expireDate = Get-Date $lastDay 
+   if ( (Get-Date $lastDay) -le (Get-Date) ){
+    Add-Log warning ('Employee Last day ({0}) exceeded for {1}')
+    $expireDate = (Get-Date).AddDays(14)
+   } else {
+    $expireDate = Get-Date $lastDay
+   }
   }
   else {
    Add-Log Warning "DateTerminationLastDay not set in Escape for $empId $samid" $WhatIf
    continue
   }
-
+  Add-Log info "$empId $samid - Setting AccountExpirationDate to $expireDate" $WhatIf
   Set-ADUser -Identity $user.SamAccountName -AccountExpirationDate $expireDate -Whatif:$WhatIf
-
+ 
   $headsUpMsg = Get-Content -Path '.\lib\HeadsUpEmail.txt' -Raw
   $headsUpHTML = $headsUpMsg -f $user.givenName, $user.samAccountName, ($expireDate | Out-String)
 
@@ -142,10 +149,14 @@ foreach ( $user in $retiredTerminated ) {
    Cred        = $EmailCredential
    UseSSL      = $True
    Port        = 587
-   Whatif      = $WhatIf
   }
-  Send-MailMessage @mailParams
-  Add-Log info "$empId $samid - AccountExpirationDate set to $expireDate" $WhatIf
+  
+  if ($WhatIf){
+   $headsUpHTML
+  }
+  else {
+   Send-MailMessage @mailParams
+  }
  }
  else {
   Write-Verbose "Expiration date already set for $empId $samid - $($user.AccountExpirationDate)" 
