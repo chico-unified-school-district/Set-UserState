@@ -140,11 +140,11 @@ foreach ( $user in $retiredTerminated ) {
 
   $mailParams = @{
    To          = "<$($user.mail)>"
-   From        = 'NoReply <slog@chicousd.net>'
+   From        = $EmailCredential.Username
    Subject     = "CUSD Account Expiration"
    bodyAsHTML  = $true
    Body        = $headsUpHTML 
-   SMTPServer  = 'smtp.gmail.com'
+   SMTPServer  = 'smtp.office365.com'
    Cred        = $EmailCredential
    UseSSL      = $True
    Port        = 587
