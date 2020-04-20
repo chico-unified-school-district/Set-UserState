@@ -101,11 +101,11 @@ foreach ($user in $expiredAccounts) {
  Set-ADUser -Identity $user.ObjectGUID -Clear extensionAttribute1 -Whatif:$WhatIf
  Set-ADUser -Identity $user.ObjectGUID -Replace @{msExchHideFromAddressLists = "TRUE" } -Whatif:$WhatIf
  Move-ADObject -Identity $user.ObjectGUID -TargetPath $retiredOU -Whatif:$WhatIf
- Add-Log action "$($user.samAccountName) Moved expired user account to Retired/Terminated OU." $WhatIf
+ Add-Log action ('{0},Moved expired user account to Retired/Terminated OU.' -f $user.samAccountName ) $WhatIf
 }
 
 Write-Host "Running Retired/Terminated search..."
-$retiredTerminated = $ADemployees.ForEach( { if ($dbResults.empid -contains $_.employeeID) { $_ } })
+$retiredTerminated = $ADemployees.ForEach( { if ($dbResults.empid -contains $_.employeeID) { $_ } }) | Select-Object -First 10
 
 # Check Retired/terminated ===========================================================
 # Process Rows
@@ -122,17 +122,17 @@ foreach ( $user in $retiredTerminated ) {
   $lastDay = ($dbResults.where( { $_.empID -eq $empId })).DateTerminationLastDay
   if ( $lastDay -and ($lastDay.getType().name -ne 'DBNull') ) {
    if ( (Get-Date $lastDay) -le (Get-Date) ){
-    Add-Log warning ('Employee Last day ({0}) exceeded for {1}')
+    Add-Log warning "$samid,Employee Last day in the past,$lastDay"
     $expireDate = (Get-Date).AddDays(14)
    } else {
     $expireDate = Get-Date $lastDay
    }
   }
   else {
-   Add-Log Warning "DateTerminationLastDay not set in Escape for $empId $samid" $WhatIf
+   Add-Log Warning "$empId,$samid,DateTerminationLastDay not set in Escape" $WhatIf
    continue
   }
-  Add-Log info "$empId $samid - Setting AccountExpirationDate to $expireDate" $WhatIf
+  Add-Log info "$empId,$samid,Setting AccountExpirationDate,$expireDate" $WhatIf
   Set-ADUser -Identity $user.SamAccountName -AccountExpirationDate $expireDate -Whatif:$WhatIf
  
   $headsUpMsg = Get-Content -Path '.\lib\HeadsUpEmail.txt' -Raw
@@ -140,8 +140,7 @@ foreach ( $user in $retiredTerminated ) {
 
   $mailParams = @{
    To          = "<$($user.mail)>"
-   From        = '<slog@chicousd.net>'
-   FromMessage = 'NoReply'
+   From        = 'NoReply <slog@chicousd.net>'
    Subject     = "CUSD Account Expiration"
    bodyAsHTML  = $true
    Body        = $headsUpHTML 
@@ -152,9 +151,10 @@ foreach ( $user in $retiredTerminated ) {
   }
   
   if ($WhatIf){
-   $headsUpHTML
+   $mailParams
   }
   else {
+   Add-Log mail ('{0},CUSD Account Expiration email sent' -f $user.mail)
    Send-MailMessage @mailParams
   }
  }
