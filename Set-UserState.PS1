@@ -29,6 +29,8 @@ param (
  [Parameter(Mandatory = $True)]
  [Alias('MailCred')]
  [System.Management.Automation.PSCredential]$EmailCredential,
+ # Send the heads up email to another account
+ [string]$BccAddress,
  [Alias('wi')]
  [SWITCH]$WhatIf
 )
@@ -105,7 +107,7 @@ foreach ($user in $expiredAccounts) {
 }
 
 Write-Host "Running Retired/Terminated search..."
-$retiredTerminated = $ADemployees.ForEach( { if ($dbResults.empid -contains $_.employeeID) { $_ } }) | Select-Object -First 10
+$retiredTerminated = $ADemployees.ForEach( { if ($dbResults.empid -contains $_.employeeID) { $_ } }) | Select-Object -First 35
 
 # Check Retired/terminated ===========================================================
 # Process Rows
@@ -139,9 +141,9 @@ foreach ( $user in $retiredTerminated ) {
   $headsUpHTML = $headsUpMsg -f $user.givenName, $user.samAccountName, ($expireDate | Out-String)
 
   $mailParams = @{
-   To          = "<$($user.mail)>"
+   To          = $user.mail
    From        = $EmailCredential.Username
-   Subject     = "CUSD Account Expiration"
+   Subject     = 'CUSD Account Expiration'
    bodyAsHTML  = $true
    Body        = $headsUpHTML 
    SMTPServer  = 'smtp.office365.com'
@@ -149,7 +151,7 @@ foreach ( $user in $retiredTerminated ) {
    UseSSL      = $True
    Port        = 587
   }
-  
+  if ($BccAddress) { $mailParams += @{Bcc = $BccAddress} }
   if ($WhatIf){
    $mailParams
   }
