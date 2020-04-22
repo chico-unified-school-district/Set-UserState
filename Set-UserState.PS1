@@ -56,7 +56,7 @@ $adSession = New-PSSession -ComputerName $DomainController -Credential $ActiveDi
 $cmdLets = 'Get-ADUser', 'Set-ADUser', 'Move-ADObject' , 'Search-ADAccount'
 Import-PSSession -Session $adSession -Module 'ActiveDirectory' -CommandName $cmdLets -AllowClobber | Out-Null
 
-# Escape Connection Variables
+# DB Connection Variables
 $dbParams = @{
  Server     = $DatabaseServer
  Database   = $Database
@@ -66,7 +66,7 @@ $dbParams = @{
 
 # Processing
 $dbResults = Invoke-SQLCommand @dbParams
-"Escape Results: " + $dbResults.count
+"Employee DB Results: " + $dbResults.count
 
 $employeeParams = @{
  filter     = { 
@@ -94,12 +94,11 @@ $searchParams = @{
 
 $expiredAccounts = Search-ADAccount @searchParams | Where-Object { 
  $_.AccountExpirationDate -lt $expiredGracePeriod -and
- $_.distinguishedname -notlike "*New*Employee*Accounts*"
+ $_.distinguishedname -notlike "*OU=New Employee Accounts*"
 }
 foreach ($user in $expiredAccounts) {
  Write-Debug ("Process {0}?" -f $user.samAccountName)
  Write-Verbose ("Processing {0}" -f $user.samAccountName)
- # $user.distinguishedname >> dn.txt
  Set-ADUser -Identity $user.ObjectGUID -Clear extensionAttribute1 -Whatif:$WhatIf
  Set-ADUser -Identity $user.ObjectGUID -Replace @{msExchHideFromAddressLists = "TRUE" } -Whatif:$WhatIf
  Move-ADObject -Identity $user.ObjectGUID -TargetPath $retiredOU -Whatif:$WhatIf
@@ -114,24 +113,24 @@ $retiredTerminated = $ADemployees.ForEach( { if ($dbResults.empid -contains $_.e
 foreach ( $user in $retiredTerminated ) {
  Write-Debug ("Process {0} {1}?" -f $user.samAccountName, $user.employeeID)
  Write-Verbose ("Processing {0} {1}" -f $user.samAccountName, $user.employeeID)
- # $user.name >> .\names.txt
  $samid = $user.samAccountName
  $empId = $user.employeeId
  Write-Verbose "Processing $empId $samid - $($user.AccountExpirationDate)"
  # Write-Progress -Activity "Processing $([array]::IndexOf($retiredTerminated,$user))`/$($retiredTerminated.count)"
  if ( ($null -eq $user.AccountExpirationDate) -or ('' -eq $user.AccountExpirationDate)) {
-  # Set Account Expiration
   $lastDay = ($dbResults.where( { $_.empID -eq $empId })).DateTerminationLastDay
+  # Check for existing DateTerminationLastDay
   if ( $lastDay -and ($lastDay.getType().name -ne 'DBNull') ) {
+   # Set Account Expiration
    if ( (Get-Date $lastDay) -le (Get-Date) ){
     Add-Log warning "$samid,Employee Last day in the past,$lastDay"
-    $expireDate = (Get-Date).AddDays(14)
+    $expireDate = (Get-Date).AddDays(7)
    } else {
     $expireDate = Get-Date $lastDay
    }
   }
   else {
-   Add-Log Warning "$empId,$samid,DateTerminationLastDay not set in Escape" $WhatIf
+   Add-Log Warning "$empId,$samid,DateTerminationLastDay not set in Employee Database" $WhatIf
    continue
   }
   Add-Log info "$empId,$samid,Setting AccountExpirationDate,$expireDate" $WhatIf
