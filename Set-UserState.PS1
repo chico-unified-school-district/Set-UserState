@@ -107,7 +107,7 @@ foreach ($user in $expiredAccounts) {
 }
 
 Write-Host "Running Retired/Terminated search..."
-$retiredTerminated = $ADemployees.ForEach( { if ($dbResults.empid -contains $_.employeeID) { $_ } }) | Select-Object -First 35
+$retiredTerminated = $ADemployees.ForEach( { if ($dbResults.empid -contains $_.employeeID) { $_ } })
 
 # Check Retired/terminated ===========================================================
 # Process Rows
@@ -118,7 +118,7 @@ foreach ( $user in $retiredTerminated ) {
  $samid = $user.samAccountName
  $empId = $user.employeeId
  Write-Verbose "Processing $empId $samid - $($user.AccountExpirationDate)"
- Write-Progress -Activity "Processing $([array]::IndexOf($retiredTerminated,$user))`/$($retiredTerminated.count)"
+ # Write-Progress -Activity "Processing $([array]::IndexOf($retiredTerminated,$user))`/$($retiredTerminated.count)"
  if ( ($null -eq $user.AccountExpirationDate) -or ('' -eq $user.AccountExpirationDate)) {
   # Set Account Expiration
   $lastDay = ($dbResults.where( { $_.empID -eq $empId })).DateTerminationLastDay
