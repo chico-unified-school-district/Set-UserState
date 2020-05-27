@@ -47,10 +47,20 @@
    </ui>
    </p>
 		Thank You,<br>
-		<h4>Chico Unified Information Services</h4>
-		<a href="http://www.chicousd.org" target="_blank">
-   <img src="https://i.imgur.com/CNEhFkP.png" alt="CUSD Logo" width=60 height=60><br>
-   www.ChicoUSD.Org
-  </a>
+
+<table>
+  <tbody>
+    <tr>
+      <td> <a href="http://www.chicousd.org/" target="_blank"> <img src="http://www.chicousd.org/images/logo.png" alt="CUSD Logo" height="60" width="60"> </a> </td>
+      <td>
+      <h5><br>Chico Unified School District<br>
+	Information Services<br>
+      <a href="http://www.chicousd.org/" target="_blank">www.chicousd.org</a>
+      </h5>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
 	</body>
 </html>
