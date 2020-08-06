@@ -1,8 +1,9 @@
- <html>
- <head>
-  <title>Welcome to CUSD</title>
-   <style TYPE="TEXT/CSS">
-   <!--
+<!-- Formatted with https://jsonformatter.org/html-viewer -->
+<html>
+	<head>
+		<title>Welcome to CUSD</title>
+		<style TYPE="TEXT/CSS">
+			<!--
     body {{
      font-family: Helvetica, Arial, Sans-Serif;
    }}
@@ -23,44 +24,61 @@
      text-indent: 1em;
     }}
    -->
-  </style>
- </head>
-  <body>
-   <h3><strong>Hello {0},</strong></h3>
-   <p>
+		</style>
+	</head>
+	<body>
+		<h3>
+			<strong>Hello {0},</strong>
+		</h3>
+		<p>
     Your Chico Unified accounts
-    <ui>
-     <li>{1}@chicousd.ORG (Office365)</li>
-     <li>{1}@chicousd.NET (Google)</li>
-    </ui>
-    <br>are scheduled to be disabled on <b>{2}</b>.
-   </p>
-   <p>
+    
+			<ui>
+				<li>{1}@chicousd.ORG (Office365)</li>
+				<li>{1}@chicousd.NET (Google)</li>
+			</ui>
+			<br>are scheduled to be disabled on 
+				<b>{2}</b>.
+   
+			</p>
+			<p>
     To save your Google Suite files follow this 
-     guide: <a href="https://goo.gl/SlCQ1D">Google File Transfer Instructions</a>
-   </p>
-   <p>Still employed by the Chico Unified School District? 
+     guide: 
+				<a href="https://goo.gl/SlCQ1D">Google File Transfer Instructions</a>
+			</p>
+			<p>Still employed by the Chico Unified School District? 
     Contact the following staff member to have your account reinstated:
-    <ui>
-    <li>Certificated Staff - Heather Deaver <a href="mailto:hdeaver@chicousd.org" target="_blank">hdeaver@chicousd.org</a></li>
-    <li>Classified Staff - Christina Ordorica <a href="mailto:cordorica@chicousd.org" target="_blank">cordorica@chicousd.org</a></li>
-    </ui>
-    </p>
-   Thank You,<br>
-
- <table>
-   <tbody>
-     <tr>
-       <td> <a href="http://www.chicousd.org/" target="_blank"> <img src="http://www.chicousd.org/images/logo.png" alt="CUSD Logo" height="60" width="60"> </a> </td>
-       <td>
-       <h5><br>Chico Unified School District<br>
-  Information Services<br>
-       <a href="http://www.chicousd.org/" target="_blank">www.chicousd.org</a>
-       </h5>
-       </td>
-     </tr>
-   </tbody>
- </table>
-
-  </body>
- </html>
+    
+				<ui>
+					<li>Certificated Staff - Hannah Tortoich (
+						<a href="mailto:htortorich@chicousd.org" target="_blank">htortorich@chicousd.org</a>)
+					</li>
+					<li>Classified Staff - Christina Ordorica (
+						<a href="mailto:cordorica@chicousd.org" target="_blank">cordorica@chicousd.org</a>)
+					</li>
+				</ui>
+			</p>
+   Thank You,
+			<br>
+				<table>
+					<tbody>
+						<tr>
+							<td>
+								<a href="http://www.chicousd.org/" target="_blank">
+									<img src="http://www.chicousd.org/images/logo.png" alt="CUSD Logo" height="60" width="60">
+									</a>
+								</td>
+								<td>
+									<h5>
+										<br>Chico Unified School District
+											<br>
+  Information Services
+												<br>
+													<a href="http://www.chicousd.org/" target="_blank">www.chicousd.org</a>
+												</h5>
+											</td>
+										</tr>
+									</tbody>
+								</table>
+							</body>
+						</html>
