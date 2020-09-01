@@ -100,7 +100,7 @@ foreach ($user in $expiredAccounts) {
  Write-Debug ("Process {0}?" -f $user.samAccountName)
  Write-Verbose ("Processing {0}" -f $user.samAccountName)
  Set-ADUser -Identity $user.ObjectGUID -Clear extensionAttribute1 -Whatif:$WhatIf
- Set-ADUser -Identity $user.ObjectGUID -Replace @{msExchHideFromAddressLists = "TRUE" } -Whatif:$WhatIf
+ Set-ADUser -Identity $user.ObjectGUID -Replace @{msExchHideFromAddressLists = $true } -Whatif:$WhatIf
  Move-ADObject -Identity $user.ObjectGUID -TargetPath $retiredOU -Whatif:$WhatIf
  Add-Log action ('{0},Moved expired user account to Retired/Terminated OU.' -f $user.samAccountName ) $WhatIf
 }
@@ -163,6 +163,24 @@ foreach ( $user in $retiredTerminated ) {
   Write-Verbose "Expiration date already set for $empId $samid - $($user.AccountExpirationDate)" 
  }
 } # End Process Rows
+
+# Adjust Returning Users
+$employeeParams = @{
+ filter     = {
+  (employeeID -like "*") -and
+  (mail -like "*@chicousd.org") -and
+  ( msExchHideFromAddressLists -eq $true )
+ }
+ properties = 'employeeid', 'employeenumber', 'mail', 'AccountExpirationDate', 'msExchHideFromAddressLists'
+ searchBase = $StaffOU
+}
+
+$adEmployeeObjects = get-aduser @employeeParams | Where-Object {$_.employeeID -match "\d{4,}"}
+Add-Log results ('AD employee object count: {0}' -f $adEmployeeObjects.count)
+foreach ($obj in $adEmployeeObjects) {
+ Set-ADUser -Identity $obj.ObjectGUID -clear msExchHideFromAddressLists -Whatif:$WhatIf
+ Add-Log clear ('msExchHideFromAddressLists for {0}' -f $obj.samAccountName) -Whatif:$WhatIf
+}
 
 Write-Verbose "Tearing down sessions"
 Get-PSSession | Remove-PSSession
