@@ -19,6 +19,9 @@ param (
  [Alias('ADCred')]
  [System.Management.Automation.PSCredential]$ActiveDirectoryCredential,
  [Parameter(Mandatory = $True)]
+ [Alias('MSCred')]
+ [System.Management.Automation.PSCredential]$MSOLCredentials,
+ [Parameter(Mandatory = $True)]
  [Alias('DBServer')]
  [string]$DatabaseServer,
  [Parameter(Mandatory = $True)]
@@ -51,6 +54,17 @@ $retiredOU = 'OU=Resignation-Termination-Retired,OU=Disabled_User_Objects,DC=chi
 # Logging Info
 if ( $WhatIf ) { Add-Log test "All Actions DISABLED" }
 
+# MSOLservice
+if (!(Get-module -ListAvailable -Name MSOnline)){
+ Install-PackageProvider -Name NuGet -Force -Scope CurrentUser -Confirm:$false
+ Start-Sleep 5
+ Install-Module -Name MSOnline -Scope CurrentUser -Force -Confirm:$false
+}
+
+Import-Module -Name MSOnline
+Connect-MSOLService -Credential $MSOLCredentials
+$a1License = 'chicousd:STANDARDWOFFPACK_FACULTY'
+
 # AD Domain Controller Session
 $adSession = New-PSSession -ComputerName $DomainController -Credential $ActiveDirectoryCredential
 $cmdLets = 'Get-ADUser', 'Set-ADUser', 'Move-ADObject' , 'Search-ADAccount'
@@ -69,40 +83,47 @@ $dbResults = Invoke-SQLCommand @dbParams
 "Employee DB Results: " + $dbResults.count
 
 $employeeParams = @{
- filter     = { 
-  (employeeID -like "*") -and 
-  (mail -like "*@chicousd.org") -and 
-  (info -notlike "*Keep*Active*") -and
-  (department -ne 380)
+ filter     = {
+  (employeeID -like "*") -and
+  (mail -like "*@chicousd.org") -and
+  (info -notlike "*Keep*Active*")
  }
- properties = 'employeeid', 'employeenumber', 'mail', 'AccountExpirationDate'
+ properties = 'employeeid', 'employeenumber', 'mail', 'AccountExpirationDate','LastLogonDate'
  searchBase = $StaffOU
 }
 
 $ADemployees = get-aduser @employeeParams | Where-Object {$_.distinguishedname -notlike "*OU=New Employee Accounts*"}
 "AD Results`: " + $ADemployees.count
 
-# Move Exppired Accounts ============================================================
+# Move Expired Accounts ============================================================
 $expiredGracePeriod = (Get-Date).AddDays(-14)
-
 $searchParams = @{
  AccountExpired = $True
  ResultPageSize = 20000
  UsersOnly      = $True
  SearchBase     = $StaffOU
 }
-
-$expiredAccounts = Search-ADAccount @searchParams | Where-Object { 
+$expiredAccounts = Search-ADAccount @searchParams | Where-Object {
  $_.AccountExpirationDate -lt $expiredGracePeriod -and
  $_.distinguishedname -notlike "*OU=New Employee Accounts*"
 }
+
 foreach ($user in $expiredAccounts) {
  Write-Debug ("Process {0}?" -f $user.samAccountName)
  Write-Verbose ("Processing {0}" -f $user.samAccountName)
+ # Clear special attribute
  Set-ADUser -Identity $user.ObjectGUID -Clear extensionAttribute1 -Whatif:$WhatIf
+ # Hide from Global Address List
  Set-ADUser -Identity $user.ObjectGUID -Replace @{msExchHideFromAddressLists = $true } -Whatif:$WhatIf
+ # Move to Retired Org Unit
  Move-ADObject -Identity $user.ObjectGUID -TargetPath $retiredOU -Whatif:$WhatIf
  Add-Log action ('{0},Moved expired user account to Retired/Terminated OU.' -f $user.samAccountName ) $WhatIf
+ $upn = $user.UserPrincipalName
+ $msolData = Get-MsolUser -UserPrincipalName $upn
+ foreach ( $license in ($msoldata.Licenses.AccountSkuId) ){
+  Add-Log license ('{0}, Removing License: {1}' -f $upn, $license) $WhatIf
+  if (!$WhatIf){ Set-MsolUserLicense -UserPrincipalName $upn -RemoveLicenses $license }
+ }
 }
 
 Write-Host "Running Retired/Terminated search..."
@@ -116,7 +137,6 @@ foreach ( $user in $retiredTerminated ) {
  $samid = $user.samAccountName
  $empId = $user.employeeId
  Write-Verbose "Processing $empId $samid - $($user.AccountExpirationDate)"
- # Write-Progress -Activity "Processing $([array]::IndexOf($retiredTerminated,$user))`/$($retiredTerminated.count)"
  if ( ($null -eq $user.AccountExpirationDate) -or ('' -eq $user.AccountExpirationDate)) {
   $lastDay = ($dbResults.where( { $_.empID -eq $empId })).DateTerminationLastDay
   # Check for existing DateTerminationLastDay
@@ -128,14 +148,31 @@ foreach ( $user in $retiredTerminated ) {
    } else {
     $expireDate = Get-Date $lastDay
    }
-  }
-  else {
+  } else {
    Add-Log Warning "$empId,$samid,DateTerminationLastDay not set in Employee Database" $WhatIf
-   continue
+   # Check if the Account is out of use ==========================================
+   $cutoffDate = (Get-Date).AddMonths(-6)
+   # ================ STALE ACCOUNT SECTION =======================
+   if ($user.LastLogonDate -le $cutoffDate){
+    $upn = $user.UserPrincipalName
+    Add-Log stale ('{0},Account not used since {1}' -f $upn,$user.LastLogonDate) $WhatIf
+    $msolData = Get-MsolUser -UserPrincipalName $upn
+    foreach ( $license in ($msoldata.Licenses.AccountSkuId) ){
+     Add-Log license ('{0}, Removing License: {1}' -f $upn, $license) $WhatIf
+     if (!$WhatIf){ Set-MsolUserLicense -UserPrincipalName $upn -RemoveLicenses $license }
+    }
+    Add-Log license ('{0}, Adding Default License: {1}' -f $upn, $a1License) $WhatIf
+    if (!$WhatIf){ Set-MsolUserLicense -UserPrincipalName $upn -AddLicenses $a1License }
+    $expireDate = (Get-Date).AddDays(14)
+    Add-Log info "$empId,$samid,Setting AccountExpirationDate,$expireDate" $WhatIf
+    Set-ADUser -Identity $user.SamAccountName -AccountExpirationDate $expireDate -Whatif:$WhatIf
+   } else { continue }
+   # ================ STALE ACCOUNT SECTION =======================
+
   }
   Add-Log info "$empId,$samid,Setting AccountExpirationDate,$expireDate" $WhatIf
   Set-ADUser -Identity $user.SamAccountName -AccountExpirationDate $expireDate -Whatif:$WhatIf
- 
+
   $headsUpMsg = Get-Content -Path '.\lib\HeadsUpEmail.txt' -Raw
   $headsUpHTML = $headsUpMsg -f $user.givenName, $user.samAccountName, ($expireDate | Out-String)
 
@@ -144,7 +181,7 @@ foreach ( $user in $retiredTerminated ) {
    From        = $EmailCredential.Username
    Subject     = 'CUSD Account Expiration'
    bodyAsHTML  = $true
-   Body        = $headsUpHTML 
+   Body        = $headsUpHTML
    SMTPServer  = 'smtp.office365.com'
    Cred        = $EmailCredential
    UseSSL      = $True
