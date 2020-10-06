@@ -3,11 +3,14 @@
 .SYNOPSIS
 .DESCRIPTION
  Set expiration dates for retired/terminated employee user accounts and moves expired accounts to disabled OU.
+ Modifies Azure Licensing as needed.
  An email is sent to users warning them of the impending expiration.
 .EXAMPLE
 .INPUTS
 .OUTPUTS
 .NOTES
+Special Thanks to June Castillote for helping me get MSOnline functioning properyl in Jenkins!
+https://adamtheautomator.com/jenkins-powershll-64bit/
 #>
 
 [cmdletbinding()]
@@ -55,20 +58,25 @@ $retiredOU = 'OU=Resignation-Termination-Retired,OU=Disabled_User_Objects,DC=chi
 if ( $WhatIf ) { Add-Log test "All Actions DISABLED" }
 
 # MSOLservice
-if (!(Get-module -ListAvailable -Name MSOnline)){
- Install-PackageProvider -Name NuGet -Force -Scope CurrentUser -Confirm:$false
- Start-Sleep 5
- Install-Module -Name MSOnline -Scope CurrentUser -Force -Confirm:$false
+Invoke-Command -ComputerName ($ENV:COMPUTERNAME) -ScriptBlock {
+ if (!(Get-module -ListAvailable -Name MSOnline)){
+  Install-PackageProvider -Name NuGet -Force -Scope CurrentUser -Confirm:$false
+  Start-Sleep 5
+  Install-Module -Name MSOnline -Scope CurrentUser -Force -Confirm:$false
+ }
 }
 
-Import-Module -Name MSOnline
+$msolSession = New-PSSession -ComputerName $ENV:COMPUTERNAME 
+$msolCmdlets = 'Connect-MsolService','Get-MsolUser','Set-MsolUserLicense'
+Import-PSSession -Session $msolSession -Module MSOnline -CommandName $msolCmdlets | Out-Null
 Connect-MSOLService -Credential $MSOLCredentials
+
 $a1License = 'chicousd:STANDARDWOFFPACK_FACULTY'
 
 # AD Domain Controller Session
 $adSession = New-PSSession -ComputerName $DomainController -Credential $ActiveDirectoryCredential
-$cmdLets = 'Get-ADUser', 'Set-ADUser', 'Move-ADObject' , 'Search-ADAccount'
-Import-PSSession -Session $adSession -Module 'ActiveDirectory' -CommandName $cmdLets -AllowClobber | Out-Null
+$adCmdLets = 'Get-ADUser', 'Set-ADUser', 'Move-ADObject' , 'Search-ADAccount'
+Import-PSSession -Session $adSession -Module 'ActiveDirectory' -CommandName $adCmdLets -AllowClobber | Out-Null
 
 # DB Connection Variables
 $dbParams = @{
@@ -138,7 +146,17 @@ foreach ( $user in $retiredTerminated ) {
  $empId = $user.employeeId
  Write-Verbose "Processing $empId $samid - $($user.AccountExpirationDate)"
  if ( ($null -eq $user.AccountExpirationDate) -or ('' -eq $user.AccountExpirationDate)) {
-  $lastDay = ($dbResults.where( { $_.empID -eq $empId })).DateTerminationLastDay
+
+  # Determine appropriate exit date ================================================
+  # There are 2 date fields that can be used to record an employee's exit date
+  $DateTerminationLastDay = ($dbResults.where( { $_.empID -eq $empId })).DateTerminationLastDay
+  $DateTermination = ($dbResults.where( { $_.empID -eq $empId })).DateTerminationLastDay
+  if ($DateTerminationLastDay -or $DateTermination){
+   if ($DateTermination -ge $DateTerminationLastDay) { $lastDay = $DateTermination}
+   else { $lastDay = $DateTerminationLastDay }
+  }
+  # Determine appropriate exit date ================================================
+  
   # Check for existing DateTerminationLastDay
   if ( $lastDay -and ($lastDay.getType().name -ne 'DBNull') ) {
    # Set Account Expiration
@@ -153,6 +171,7 @@ foreach ( $user in $retiredTerminated ) {
    # Check if the Account is out of use ==========================================
    $cutoffDate = (Get-Date).AddMonths(-6)
    # ================ STALE ACCOUNT SECTION =======================
+   # LastPasswordChangeTimestamp
    if ($user.LastLogonDate -le $cutoffDate){
     $upn = $user.UserPrincipalName
     Add-Log stale ('{0},Account not used since {1}' -f $upn,$user.LastLogonDate) $WhatIf
@@ -164,8 +183,8 @@ foreach ( $user in $retiredTerminated ) {
     Add-Log license ('{0}, Adding Default License: {1}' -f $upn, $a1License) $WhatIf
     if (!$WhatIf){ Set-MsolUserLicense -UserPrincipalName $upn -AddLicenses $a1License }
     $expireDate = (Get-Date).AddDays(14)
-    Add-Log info "$empId,$samid,Setting AccountExpirationDate,$expireDate" $WhatIf
-    Set-ADUser -Identity $user.SamAccountName -AccountExpirationDate $expireDate -Whatif:$WhatIf
+    # Add-Log info "$empId,$samid,Setting AccountExpirationDate,$expireDate" $WhatIf
+    # Set-ADUser -Identity $user.SamAccountName -AccountExpirationDate $expireDate -Whatif:$WhatIf
    } else { continue }
    # ================ STALE ACCOUNT SECTION =======================
 
