@@ -70,7 +70,7 @@ Invoke-Command -ComputerName ($ENV:COMPUTERNAME) -ScriptBlock {
 }
 
 $msolSession = New-PSSession -ComputerName $ENV:COMPUTERNAME 
-$msolCmdlets = 'Connect-MsolService','Get-MsolUser','Set-MsolUserLicense'
+$msolCmdlets = 'Connect-MsolService','Get-MsolUser','Set-MsolUserLicense','Get-MsolAccountSku'
 Import-PSSession -Session $msolSession -Module MSOnline -CommandName $msolCmdlets -AllowClobber | Out-Null
 Connect-MSOLService -Credential $MSOLCredentials
 
@@ -182,7 +182,7 @@ foreach ( $user in $retiredTerminated ) {
    $expireDate = (Get-Date).AddDays(14)
   }
    # ================ STALE ACCOUNT SECTION =======================
- 
+
   Add-Log info "$empId,$samid,Setting AccountExpirationDate,$expireDate" $WhatIf
   Set-ADUser -Identity $user.SamAccountName -AccountExpirationDate $expireDate -Whatif:$WhatIf
 
@@ -200,15 +200,14 @@ foreach ( $user in $retiredTerminated ) {
    UseSSL      = $True
    Port        = 587
   }
+
   if ($BccAddress) { $mailParams += @{Bcc = $BccAddress} }
-  if ($WhatIf){ $mailParams.to }
-  else {
-   Add-Log action ('{0},CUSD Account Expiration email sent' -f $user.mail) $WhatIf
-   Send-MailMessage @mailParams
-  }
+
+  Add-Log action ('{0},CUSD Account Expiration email sent' -f $user.mail) $WhatIf
+  if (!$WhatIf){ Send-MailMessage @mailParams }
  } # End Expire Date Anchor
  else {
-  Write-Verbose "Expiration date already set for $empId $samid - $($user.AccountExpirationDate)" 
+  Write-Verbose "Expiration date already set for $empId $samid - $($user.AccountExpirationDate)"
  }
 } # End Process Rows
 
