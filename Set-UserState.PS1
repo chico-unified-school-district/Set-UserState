@@ -24,6 +24,8 @@ param (
  [Parameter(Mandatory = $True)]
  [Alias('MSCred')]
  [System.Management.Automation.PSCredential]$MSOLCredentials,
+ [Alias('License')]
+ [string]$DefaultLicenseSkuID,
  [Parameter(Mandatory = $True)]
  [Alias('DBServer')]
  [string]$DatabaseServer,
@@ -68,10 +70,8 @@ Invoke-Command -ComputerName ($ENV:COMPUTERNAME) -ScriptBlock {
 
 $msolSession = New-PSSession -ComputerName $ENV:COMPUTERNAME 
 $msolCmdlets = 'Connect-MsolService','Get-MsolUser','Set-MsolUserLicense'
-Import-PSSession -Session $msolSession -Module MSOnline -CommandName $msolCmdlets | Out-Null
+Import-PSSession -Session $msolSession -Module MSOnline -CommandName $msolCmdlets -AllowClobber | Out-Null
 Connect-MSOLService -Credential $MSOLCredentials
-
-$a1License = 'chicousd:STANDARDWOFFPACK_FACULTY'
 
 # AD Domain Controller Session
 $adSession = New-PSSession -ComputerName $DomainController -Credential $ActiveDirectoryCredential
@@ -138,6 +138,7 @@ Write-Host "Running Retired/Terminated search..."
 $retiredTerminated = $ADemployees.ForEach( { if ($dbResults.empid -contains $_.employeeID) { $_ } })
 
 # Check Retired/terminated ===========================================================
+$accountSkuIds = (Get-MsolAccountSku).AccountSkuId
 # Process Rows
 foreach ( $user in $retiredTerminated ) {
  Write-Debug ("Process {0} {1}?" -f $user.samAccountName, $user.employeeID)
@@ -145,50 +146,42 @@ foreach ( $user in $retiredTerminated ) {
  $samid = $user.samAccountName
  $empId = $user.employeeId
  Write-Verbose "Processing $empId $samid - $($user.AccountExpirationDate)"
- if ( ($null -eq $user.AccountExpirationDate) -or ('' -eq $user.AccountExpirationDate)) {
+ 
+ if ( ($null -eq $user.AccountExpirationDate) -or ('' -eq $user.AccountExpirationDate)) { # Begin Expire Date Anchor
 
-  # Determine appropriate exit date ================================================
   # There are 2 date fields that can be used to record an employee's exit date
-  $DateTerminationLastDay = ($dbResults.where( { $_.empID -eq $empId })).DateTerminationLastDay
-  $DateTermination = ($dbResults.where( { $_.empID -eq $empId })).DateTerminationLastDay
-  if ($DateTerminationLastDay -or $DateTermination){
-   if ($DateTermination -ge $DateTerminationLastDay) { $lastDay = $DateTermination}
-   else { $lastDay = $DateTerminationLastDay }
-  }
   # Determine appropriate exit date ================================================
-  
-  # Check for existing DateTerminationLastDay
-  if ( $lastDay -and ($lastDay.getType().name -ne 'DBNull') ) {
-   # Set Account Expiration
-   if ( (Get-Date $lastDay) -le (Get-Date) ){
-    Add-Log warning "$samid,Employee Last day in the past,$lastDay"
-    $expireDate = (Get-Date).AddDays(7)
-   } else {
-    $expireDate = Get-Date $lastDay
-   }
-  } else {
-   Add-Log Warning "$empId,$samid,DateTerminationLastDay not set in Employee Database" $WhatIf
-   # Check if the Account is out of use ==========================================
-   $cutoffDate = (Get-Date).AddMonths(-6)
-   # ================ STALE ACCOUNT SECTION =======================
-   # LastPasswordChangeTimestamp
-   if ($user.LastLogonDate -le $cutoffDate){
-    $upn = $user.UserPrincipalName
-    Add-Log stale ('{0},Account not used since {1}' -f $upn,$user.LastLogonDate) $WhatIf
-    $msolData = Get-MsolUser -UserPrincipalName $upn
-    foreach ( $license in ($msoldata.Licenses.AccountSkuId) ){
-     Add-Log license ('{0}, Removing License: {1}' -f $upn, $license) $WhatIf
-     if (!$WhatIf){ Set-MsolUserLicense -UserPrincipalName $upn -RemoveLicenses $license }
-    }
-    Add-Log license ('{0}, Adding Default License: {1}' -f $upn, $a1License) $WhatIf
-    if (!$WhatIf){ Set-MsolUserLicense -UserPrincipalName $upn -AddLicenses $a1License }
-    $expireDate = (Get-Date).AddDays(14)
-    # Add-Log info "$empId,$samid,Setting AccountExpirationDate,$expireDate" $WhatIf
-    # Set-ADUser -Identity $user.SamAccountName -AccountExpirationDate $expireDate -Whatif:$WhatIf
-   } else { continue }
-   # ================ STALE ACCOUNT SECTION =======================
+  $dateTerm1 = ($dbResults.where( { $_.empID -eq $empId })).DateTerminationLastDay
+  $dateTerm2 = ($dbResults.where( { $_.empID -eq $empId })).DateTermination
+ 
+  if ( [string]$dateTerm2 -as [DateTime] ) { $lastDay = $dateTerm2 }
+  elseif ( [string]$dateTerm1 -as [DateTime] ) { $lastDay = $dateTerm1}
 
+  # Set Account Expiration
+  if ( (Get-Date $lastDay) -le (Get-Date) ){
+   Add-Log info "$samid,Employee Last day in the past,$lastDay"
+   $expireDate = (Get-Date).AddDays(7)
+  } else { $expireDate = Get-Date $lastDay }
+
+  # Check if the Account is out of use ==========================================
+  # ================ STALE ACCOUNT SECTION =======================
+  $cutoffDate = (Get-Date).AddMonths(-6)
+  # msol LastPasswordChangeTimestamp?
+  if ($user.LastLogonDate -le $cutoffDate){
+   $upn = $user.UserPrincipalName
+   Add-Log stale ('{0},Account not used since {1}' -f $upn,$user.LastLogonDate) $WhatIf
+   $msolData = Get-MsolUser -UserPrincipalName $upn
+   # $msoldata.Licenses.AccountSkuId
+   Add-Log license ('{0},Removing Current Licenses' -f $upn) $WhatIf
+   foreach ( $sku in $accountSkuIds ){
+    if (!$WhatIf){ Set-MsolUserLicense -UserPrincipalName $upn -RemoveLicenses $sku -ErrorAction SilentlyContinue}
+   }
+   Add-Log license ('{0},Adding Default License: {1}' -f $upn, $DefaultLicenseSkuID) $WhatIf
+   if (!$WhatIf){ Set-MsolUserLicense -UserPrincipalName $upn -AddLicenses $DefaultLicenseSkuID }
+   $expireDate = (Get-Date).AddDays(14)
   }
+   # ================ STALE ACCOUNT SECTION =======================
+ 
   Add-Log info "$empId,$samid,Setting AccountExpirationDate,$expireDate" $WhatIf
   Set-ADUser -Identity $user.SamAccountName -AccountExpirationDate $expireDate -Whatif:$WhatIf
 
@@ -207,14 +200,12 @@ foreach ( $user in $retiredTerminated ) {
    Port        = 587
   }
   if ($BccAddress) { $mailParams += @{Bcc = $BccAddress} }
-  if ($WhatIf){
-   $mailParams
-  }
+  if ($WhatIf){ $mailParams.to }
   else {
-   Add-Log mail ('{0},CUSD Account Expiration email sent' -f $user.mail)
+   Add-Log action ('{0},CUSD Account Expiration email sent' -f $user.mail) $WhatIf
    Send-MailMessage @mailParams
   }
- }
+ } # End Expire Date Anchor
  else {
   Write-Verbose "Expiration date already set for $empId $samid - $($user.AccountExpirationDate)" 
  }

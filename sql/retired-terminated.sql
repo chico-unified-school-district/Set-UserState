@@ -16,4 +16,7 @@ WHERE
  AND
  -- R: Retired T: Terminated
  HREmployment.EmploymentStatusCode IN ('R','T')
+ AND
+ -- Has to have some kind of last day listed
+ ( (vwHREmploymentList.DateTerminationLastDay IS NOT NULL) OR (vwHREmploymentList.DateTermination IS NOT NULL) )
 ORDER BY HREmployment.EmploymentStatusCode,vwHREmploymentList.empid

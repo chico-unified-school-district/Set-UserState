@@ -53,8 +53,8 @@
 					<li>Certificated Staff - Hannah Tortoich (
 						<a href="mailto:htortorich@chicousd.org" target="_blank">htortorich@chicousd.org</a>)
 					</li>
-					<li>Classified Staff - Christina Ordorica (
-						<a href="mailto:cordorica@chicousd.org" target="_blank">cordorica@chicousd.org</a>)
+					<li>Classified Staff - Whitney Stewart (
+						<a href="mailto:wstrukan@chicousd.org" target="_blank">wstrukan@chicousd.org</a>)
 					</li>
 				</ui>
 			</p>
@@ -70,7 +70,7 @@
 								</td>
 								<td>
 									<h5>
-										<br>Chico Unified School District
+										Chico Unified School District
 											<br>
   Information Services
 												<br>
