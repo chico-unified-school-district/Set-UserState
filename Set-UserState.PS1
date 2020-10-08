@@ -207,7 +207,7 @@ foreach ( $user in $retiredTerminated ) {
   if (!$WhatIf){ Send-MailMessage @mailParams }
  } # End Expire Date Anchor
  else {
-  Write-Verbose "Expiration date already set for $empId $samid - $($user.AccountExpirationDate)"
+  Write-Verbose ('{0} {1} {2} Expiration date already set' -f $empId,$samid,$user.AccountExpirationDate)
  }
 } # End Process Rows
 
