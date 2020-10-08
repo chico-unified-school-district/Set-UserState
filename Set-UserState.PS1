@@ -24,6 +24,7 @@ param (
  [Parameter(Mandatory = $True)]
  [Alias('MSCred')]
  [System.Management.Automation.PSCredential]$MSOLCredentials,
+ [Parameter(Mandatory = $True)]
  [Alias('License')]
  [string]$DefaultLicenseSkuID,
  [Parameter(Mandatory = $True)]
