@@ -69,7 +69,7 @@ Invoke-Command -ComputerName ($ENV:COMPUTERNAME) -ScriptBlock {
  }
 }
 
-$msolSession = New-PSSession -ComputerName $ENV:COMPUTERNAME 
+$msolSession = New-PSSession -ComputerName $ENV:COMPUTERNAME
 $msolCmdlets = 'Connect-MsolService','Get-MsolUser','Set-MsolUserLicense','Get-MsolAccountSku'
 Import-PSSession -Session $msolSession -Module MSOnline -CommandName $msolCmdlets -AllowClobber | Out-Null
 Connect-MSOLService -Credential $MSOLCredentials
@@ -94,14 +94,17 @@ $dbResults = Invoke-SQLCommand @dbParams
 $employeeParams = @{
  filter     = {
   (employeeID -like "*") -and
-  (mail -like "*@chicousd.org") -and
-  (info -notlike "*Keep*Active*")
+  (mail -like "*@chicousd.org")
  }
- properties = 'employeeid', 'employeenumber', 'mail', 'AccountExpirationDate','LastLogonDate'
+ properties = 'employeeid', 'employeenumber', 'mail', 'AccountExpirationDate','LastLogonDate','info'
  searchBase = $StaffOU
 }
 
-$ADemployees = get-aduser @employeeParams | Where-Object {$_.distinguishedname -notlike "*OU=New Employee Accounts*"}
+# Exclude new employee accounts and accounts with 'keep' and 'active' strings in the 'info' (notes) attribute
+$ADemployees = get-aduser @employeeParams | Where-Object {
+ ( $_.distinguishedname -notlike "*OU=New Employee Accounts*" ) -and
+ ( ($_.info -notmatch 'keep') -and ($_.info -notmatch 'active') )
+}
 "AD Results`: " + $ADemployees.count
 
 # Move Expired Accounts ============================================================
