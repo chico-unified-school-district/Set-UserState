@@ -46,17 +46,7 @@
      guide: 
 				<a href="https://goo.gl/SlCQ1D">Google File Transfer Instructions</a>
 			</p>
-			<p>Still employed by the Chico Unified School District? 
-    Contact the following staff member to have your account reinstated:
-    
-				<ui>
-					<li>Certificated Staff - Hannah Tortoich (
-						<a href="mailto:htortorich@chicousd.org" target="_blank">htortorich@chicousd.org</a>)
-					</li>
-					<li>Classified Staff - Whitney Stewart (
-						<a href="mailto:wstrukan@chicousd.org" target="_blank">wstrukan@chicousd.org</a>)
-					</li>
-				</ui>
+			<p>To request an account extension please reach out to your site office manager or department lead.
 			</p>
    Thank You,
 			<br>
