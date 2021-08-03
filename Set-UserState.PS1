@@ -28,13 +28,17 @@ param (
  [Alias('License')]
  [string]$DefaultLicenseSkuID,
  [Parameter(Mandatory = $True)]
- [Alias('DBServer')]
- [string]$DatabaseServer,
+ [string]$EscapeServer,
  [Parameter(Mandatory = $True)]
- [string]$Database,
+ [string]$EscapeDatabase,
  [Parameter(Mandatory = $True)]
- [Alias('DBCred')]
- [System.Management.Automation.PSCredential]$DatabaseCredential,
+ [System.Management.Automation.PSCredential]$EscapeCredential,
+ [Parameter(Mandatory = $True)]
+ [string]$SISServer,
+ [Parameter(Mandatory = $True)]
+ [string]$SISDatabase,
+ [Parameter(Mandatory = $True)]
+ [System.Management.Automation.PSCredential]$SISCredential,
  [Parameter(Mandatory = $True)]
  [Alias('MailCred')]
  [System.Management.Automation.PSCredential]$EmailCredential,
@@ -79,17 +83,35 @@ $adSession = New-PSSession -ComputerName $DomainController -Credential $ActiveDi
 $adCmdLets = 'Get-ADUser', 'Set-ADUser', 'Move-ADObject' , 'Search-ADAccount'
 Import-PSSession -Session $adSession -Module 'ActiveDirectory' -CommandName $adCmdLets -AllowClobber | Out-Null
 
-# DB Connection Variables
-$dbParams = @{
- Server     = $DatabaseServer
- Database   = $Database
- Credential = $DatabaseCredential
+$EscapeParams = @{
+ Server     = $EscapeServer
+ Database   = $EscapeDatabase
+ Credential = $EscapeCredential
  Query      = Get-Content -Path '.\sql\retired-terminated.sql' -Raw
 }
 
+$SISParams = @{
+ Server     = $SISServer
+ Database   = $SISDatabase
+ Credential = $SISCredential
+}
+
+function setSISStatus ($id,$sam){
+ $sisCheckQuery = "SELECT ID FROM STF WHERE ID = {0}" -f $id
+ Write-Verbose $sisCheckQuery
+ $idCheck = Invoke-SQLCommand @SISParams -Query $sisCheckQuery
+ if ($idCheck){
+  $updateSTF = "UPDATE STF SET tg = `'i`' WHERE id = {0}" -f $id
+  Invoke-SQLCommand @SISParams -Query $updateSTF -Whatif:$WhatIf
+  Add-Log sisupdate ('SET {0} {1} to inactive in {0} STF Table' -f $id, $sam, $SISDatabase) -Whatif:$WhatIf
+ } else {
+  Add-Log sisinfo ('ID {0} not found in {1} for {2}. No changes were made to STF Table.' -f $id, $SISDatabase, $sam)
+ }
+}
+
 # Processing
-$dbResults = Invoke-SQLCommand @dbParams
-"Employee DB Results: " + $dbResults.count
+$escapeDBResults = Invoke-SQLCommand @EscapeParams
+"Employee DB Results: " + $escapeDBResults.count
 
 $employeeParams = @{
  filter     = {
@@ -130,6 +152,10 @@ foreach ($user in $expiredAccounts) {
  # Move to Retired Org Unit
  Move-ADObject -Identity $user.ObjectGUID -TargetPath $retiredOU -Whatif:$WhatIf
  Add-Log action ('{0},Moved expired user account to Retired/Terminated OU.' -f $user.samAccountName ) $WhatIf
+ 
+ $userAccount = Get-ADuser -Identity $user.ObjectGUID -Properties employeeID
+ setSISStatus -id $userAccount.employeeId -sam $userAccount.samAccountName
+
  $upn = $user.UserPrincipalName
  $msolData = Get-MsolUser -UserPrincipalName $upn
  foreach ( $license in ($msoldata.Licenses.AccountSkuId) ){
@@ -139,7 +165,7 @@ foreach ($user in $expiredAccounts) {
 }
 
 Write-Host "Running Retired/Terminated search..."
-$retiredTerminated = $ADemployees.ForEach( { if ($dbResults.empid -contains $_.employeeID) { $_ } })
+$retiredTerminated = $ADemployees.ForEach( { if ($escapeDBResults.empid -contains $_.employeeID) { $_ } })
 
 # Check Retired/terminated ===========================================================
 $accountSkuIds = (Get-MsolAccountSku).AccountSkuId
@@ -155,8 +181,8 @@ foreach ( $user in $retiredTerminated ) {
 
   # There are 2 date fields that can be used to record an employee's exit date
   # Determine appropriate exit date ================================================
-  $dateTerm1 = ($dbResults.where( { $_.empID -eq $empId })).DateTerminationLastDay
-  $dateTerm2 = ($dbResults.where( { $_.empID -eq $empId })).DateTermination
+  $dateTerm1 = ($escapeDBResults.where( { $_.empID -eq $empId })).DateTerminationLastDay
+  $dateTerm2 = ($escapeDBResults.where( { $_.empID -eq $empId })).DateTermination
  
   if ( [string]$dateTerm2 -as [DateTime] ) { $lastDay = $dateTerm2 }
   elseif ( [string]$dateTerm1 -as [DateTime] ) { $lastDay = $dateTerm1}
@@ -172,6 +198,8 @@ foreach ( $user in $retiredTerminated ) {
   $cutoffDate = (Get-Date).AddMonths(-6)
   # msol LastPasswordChangeTimestamp?
   if ($user.LastLogonDate -le $cutoffDate){
+   # setSISStatus -id
+
    $upn = $user.UserPrincipalName
    Add-Log stale ('{0},Account not used since {1}' -f $upn,$user.LastLogonDate) $WhatIf
    $msolData = Get-MsolUser -UserPrincipalName $upn
