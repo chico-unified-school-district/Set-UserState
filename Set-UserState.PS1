@@ -284,23 +284,23 @@ $otherStafExpiring = $ADemployees.Where(
 )
 
 # Process Expiring staff for Expired
+# TODO For testing?
 # $escapeStaffExpiring | Select-Object samAccountName, employeeId
 # $otherStafExpiring  | Select-Object samAccountName, employeeId
 $escapeStaffExpiring | processExpiring
 $otherStafExpiring | processExpiring
-# TODO For testing?
 
 # Adjust Returning Users
-$employeeParams = @{
- filter     = {
-  (employeeID -like "*") -and
-  (mail -like "*@chicousd.org") -and
-  ( msExchHideFromAddressLists -eq $true )
+# $employeeParams = @{
+#  filter     = {
+#   (employeeID -like "*") -and
+#   (mail -like "*@chicousd.org") -and
+#   ( msExchHideFromAddressLists -eq $true )
 
- }
- properties = 'employeeid', 'employeenumber', 'mail', 'AccountExpirationDate', 'msExchHideFromAddressLists'
- searchBase = $StaffOU
-}
+#  }
+#  properties = 'employeeid', 'employeenumber', 'mail', 'AccountExpirationDate', 'msExchHideFromAddressLists'
+#  searchBase = $StaffOU
+# }
 
 # # TODO fix this logic or remove
 # $todaysDate = [int](Get-Date -f yyyymmdd)
