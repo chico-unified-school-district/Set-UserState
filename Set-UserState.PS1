@@ -150,8 +150,8 @@ foreach ($user in $expiredAccounts) {
  # Hide from Global Address List
  Set-ADUser -Identity $user.ObjectGUID -Replace @{msExchHideFromAddressLists = $true } -Whatif:$WhatIf
  # Move to Retired Org Unit
- Move-ADObject -Identity $user.ObjectGUID -TargetPath $retiredOU -Whatif:$WhatIf
- Add-Log action ('{0},Moved expired user account to Retired/Terminated OU.' -f $user.samAccountName ) $WhatIf
+#  Move-ADObject -Identity $user.ObjectGUID -TargetPath $retiredOU -Whatif:$WhatIf
+#  Add-Log action ('{0},Moved expired user account to Retired/Terminated OU.' -f $user.samAccountName ) $WhatIf
  
  $userAccount = Get-ADuser -Identity $user.ObjectGUID -Properties employeeID
  setSISStatus -id $userAccount.employeeId -sam $userAccount.samAccountName
