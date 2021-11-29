@@ -142,7 +142,7 @@ $searchParams = @{
  SearchBase     = $StaffOU
 }
 $expiredAccounts = Search-ADAccount @searchParams | Where-Object {
- ($_.AccountExpirationDate -lt $expiredGracePeriod) -and 
+ ($_.AccountExpirationDate -lt $expiredGracePeriod) -and
  ($_.Enabled -ne $false)
 }
 # $expiredAccounts = Search-ADAccount @searchParams | Where-Object {
